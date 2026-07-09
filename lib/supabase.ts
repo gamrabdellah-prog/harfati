@@ -4,28 +4,15 @@ let client: SupabaseClient | null = null;
 
 function getSupabase(): SupabaseClient {
   if (client) return client;
-
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !key) {
-    throw new Error(
-      'Missing Supabase environment variables. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your environment. ' +
-      'See .env.example for details. On Vercel, add them in Project Settings > Environment Variables.'
-    );
-  }
-
+  if (!url || !key) throw new Error('Missing Supabase environment variables');
   client = createClient(url, key, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-    },
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   });
   return client;
 }
 
-// Proxy that lazily creates the client on first property access — safe during build-time prerendering
 export const supabase = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
     return Reflect.get(getSupabase(), prop);
@@ -44,7 +31,7 @@ export type Tables = {
     address: string | null;
     specialty: string | null;
     hourly_rate: number | null;
-    skills: string[] | null;
+    skills: string[];
     availability: 'available' | 'busy' | 'unavailable';
     years_experience: number | null;
     company_name: string | null;
@@ -52,7 +39,7 @@ export type Tables = {
     instagram_url: string | null;
     linkedin_url: string | null;
     identity_doc_url: string | null;
-    certificates_urls: string[] | null;
+    certificates_urls: string[];
     cv_url: string | null;
     avg_rating: number;
     review_count: number;

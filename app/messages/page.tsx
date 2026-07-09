@@ -1,7 +1,7 @@
 'use client';
-
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/app/providers';
 import { supabase } from '@/lib/supabase';
 import type { Tables } from '@/lib/supabase';
@@ -11,12 +11,9 @@ import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Send, Loader2, MessageSquare, FileText } from 'lucide-react';
+import { Send, Loader2, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
-import { validateMessageContent, sanitizeText, validateTitle, validateAmount, validateComment } from '@/lib/validation';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+import { validateMessageContent, sanitizeText } from '@/lib/validation';
 
 type Conversation = {
   other: Tables['profiles'] | null;
@@ -26,444 +23,229 @@ type Conversation = {
 
 export default function MessagesPage() {
   const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [selectedUser, setSelectedUser] = useState<string | null>(searchParams.get('user'));
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(searchParams.get('user'));
   const [messages, setMessages] = useState<Tables['messages'][]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [selectedUserProfile, setSelectedUserProfile] = useState<Tables['profiles'] | null>(null);
-  const [contractOpen, setContractOpen] = useState(false);
-  const [contractForm, setContractForm] = useState({ title: '', description: '', amount: '', terms: '' });
-  const [creatingContract, setCreatingContract] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (!authLoading && !user) router.push('/auth');
+  }, [authLoading, user, router]);
 
   const fetchConversations = useCallback(async () => {
     if (!user) return;
-    const { data: allMessages } = await supabase
+    const { data: msgs } = await supabase
       .from('messages')
       .select('*')
       .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
       .order('created_at', { ascending: false });
 
-    const convMap = new Map<string, { lastMsg: Tables['messages']; unread: number }>();
-    (allMessages || []).forEach((msg) => {
-      const otherId = msg.sender_id === user.id ? msg.receiver_id : msg.sender_id;
-      if (!convMap.has(otherId)) {
-        convMap.set(otherId, { lastMsg: msg, unread: 0 });
-      }
-      if (msg.receiver_id === user.id && !msg.is_read) {
-        const c = convMap.get(otherId);
-        if (c) c.unread++;
-      }
+    if (!msgs) { setLoadingConversations(false); return; }
+
+    const partnerIdsSet = new Set(msgs.map((m) => m.sender_id === user.id ? m.receiver_id : m.sender_id));
+    const partnerIds = Array.from(partnerIdsSet);
+    if (partnerIds.length === 0) { setConversations([]); setLoadingConversations(false); return; }
+
+    const { data: profiles } = await supabase.from('profiles').select('*').in('id', partnerIds);
+    const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
+
+    const convs: Conversation[] = partnerIds.map((pid) => {
+      const pMsgs = msgs.filter((m) => m.sender_id === pid || m.receiver_id === pid);
+      const unread = pMsgs.filter((m) => m.receiver_id === user.id && !m.is_read).length;
+      return { other: profileMap.get(pid) || null, lastMessage: pMsgs[0] || null, unread };
     });
 
-    const uniqueUsers = Array.from(convMap.keys());
-    let profiles: Tables['profiles'][] | null = null;
-    if (uniqueUsers.length > 0) {
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .in('id', uniqueUsers);
-      profiles = data;
-    }
-
-    const convs: Conversation[] = Array.from(convMap.entries()).map(([otherId, val]) => ({
-      other: profiles?.find(p => p.id === otherId) || null,
-      lastMessage: val.lastMsg,
-      unread: val.unread,
-    }));
     setConversations(convs);
     setLoadingConversations(false);
   }, [user]);
 
-  const fetchMessages = useCallback(async () => {
-    if (!user || !selectedUser) return;
+  useEffect(() => { fetchConversations(); }, [fetchConversations]);
+
+  const fetchMessages = useCallback(async (partnerId: string) => {
+    if (!user) return;
     setLoadingMessages(true);
     const { data } = await supabase
       .from('messages')
       .select('*')
-      .or(`and(sender_id.eq.${user.id},receiver_id.eq.${selectedUser}),and(sender_id.eq.${selectedUser},receiver_id.eq.${user.id})`)
+      .or(`and(sender_id.eq.${user.id},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${user.id})`)
       .order('created_at', { ascending: true });
     setMessages(data || []);
     setLoadingMessages(false);
-
-    await supabase
-      .from('messages')
-      .update({ is_read: true })
-      .eq('receiver_id', user.id)
-      .eq('sender_id', selectedUser)
-      .eq('is_read', false);
-  }, [user, selectedUser]);
-
-  // Fetch the selected user's profile immediately when chat opens
-  useEffect(() => {
-    if (!selectedUser) {
-      setSelectedUserProfile(null);
-      return;
-    }
-    supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', selectedUser)
-      .single()
-      .then(({ data }) => setSelectedUserProfile(data));
-  }, [selectedUser]);
-
-  // Initial conversation fetch + real-time subscription for new messages
-  useEffect(() => {
+    // Mark as read
+    await supabase.from('messages').update({ is_read: true }).eq('sender_id', partnerId).eq('receiver_id', user.id).eq('is_read', false);
     fetchConversations();
-
-    if (!user) return;
-
-    const channel = supabase
-      .channel('messages-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `receiver_id=eq.${user.id}`,
-        },
-        () => {
-          fetchConversations();
-          // If the new message is from the currently selected user, fetch messages too
-          // (fetchMessages will be triggered by the messages subscription below)
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `sender_id=eq.${user.id}`,
-        },
-        () => {
-          fetchConversations();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [user, fetchConversations]);
 
-  // Fetch messages when selected user changes + real-time subscription for the conversation
   useEffect(() => {
-    fetchMessages();
+    if (selectedUserId) {
+      fetchMessages(selectedUserId);
+      supabase.from('profiles').select('*').eq('id', selectedUserId).maybeSingle().then(({ data }) => setSelectedUserProfile(data));
+    }
+  }, [selectedUserId, fetchMessages]);
 
-    if (!user || !selectedUser) return;
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-    const channel = supabase
-      .channel(`messages-${selectedUser}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `sender_id=eq.${selectedUser}`,
-        },
-        (payload) => {
-          // Only add if the message is directed at the current user
-          const newMsg = payload.new as Tables['messages'];
-          if (newMsg.receiver_id === user.id) {
-            setMessages((prev) => [...prev, newMsg]);
-            // Mark as read immediately since we're viewing the conversation
-            supabase
-              .from('messages')
-              .update({ is_read: true })
-              .eq('id', newMsg.id)
-              .eq('is_read', false)
-              .then();
-          }
-        }
-      )
-      .subscribe();
+  useEffect(() => {
+    if (!user || !selectedUserId) return;
+    const interval = setInterval(() => fetchMessages(selectedUserId), 5000);
+    return () => clearInterval(interval);
+  }, [user, selectedUserId, fetchMessages]);
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user, selectedUser, fetchMessages]);
-
-  const handleSend = async (e: React.FormEvent) => {
+  const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !selectedUser) return;
-    const contentErr = validateMessageContent(newMessage);
-    if (contentErr) { toast.error(contentErr); return; }
+    if (!user || !selectedUserId) return;
+    const err = validateMessageContent(newMessage);
+    if (err) { toast.error(err); return; }
     setSending(true);
-    const content = sanitizeText(newMessage);
-    const { data, error } = await supabase
-      .from('messages')
-      .insert({
-        sender_id: user.id,
-        receiver_id: selectedUser,
-        content,
-      })
-      .select()
-      .single();
-
+    const { error } = await supabase.from('messages').insert({
+      sender_id: user.id,
+      receiver_id: selectedUserId,
+      content: sanitizeText(newMessage),
+    });
     setSending(false);
     if (error) {
-      toast.error('فشل الإرسال: ' + error.message);
+      toast.error('فشل إرسال الرسالة');
     } else {
       setNewMessage('');
-      // Optimistically add the sent message to the UI immediately
-      if (data) {
-        setMessages((prev) => [...prev, data]);
-      }
-      // Refresh conversations to update the last message preview
-      fetchConversations();
+      fetchMessages(selectedUserId);
     }
   };
 
-  const handleCreateContract = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !selectedUser) return;
-    const titleErr = validateTitle(contractForm.title);
-    const amountErr = validateAmount(contractForm.amount);
-    const termsErr = contractForm.terms ? validateComment(contractForm.terms) : null;
-    if (titleErr) { toast.error(titleErr); return; }
-    if (amountErr) { toast.error(amountErr); return; }
-    if (termsErr) { toast.error(termsErr); return; }
-    setCreatingContract(true);
-    const { error } = await supabase.from('contracts').insert({
-      employer_id: user.id,
-      worker_id: selectedUser,
-      title: sanitizeText(contractForm.title),
-      description: contractForm.description ? sanitizeText(contractForm.description) : null,
-      amount: parseInt(contractForm.amount, 10),
-      terms: contractForm.terms ? sanitizeText(contractForm.terms) : null,
-    });
-    setCreatingContract(false);
-    if (error) {
-      toast.error('فشل إنشاء العقد: ' + error.message);
-    } else {
-      toast.success('تم إنشاء العقد بنجاح');
-      setContractOpen(false);
-      setContractForm({ title: '', description: '', amount: '', terms: '' });
-    }
-  };
-
-  if (authLoading) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-5xl mx-auto h-[calc(100vh-8rem)]">
-          <div className="flex h-full gap-4">
-            <Skeleton className="w-80 shrink-0 rounded-xl" />
-            <Skeleton className="flex-1 rounded-xl" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="container mx-auto px-4 py-8 text-center">
-        <p className="text-muted-foreground">يجب تسجيل الدخول للوصول للرسائل</p>
-      </div>
-    );
-  }
+  if (authLoading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  if (!user) return null;
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="max-w-5xl mx-auto h-[calc(100vh-8rem)]">
-        <div className="flex h-full gap-4">
-          {/* Conversations list */}
-          <Card className="w-80 shrink-0 border-border/60 overflow-hidden hidden md:flex flex-col">
-            <div className="p-4 border-b border-border">
-              <h2 className="font-bold text-lg">الرسائل</h2>
-            </div>
-            <ScrollArea className="flex-1">
-              {loadingConversations ? (
-                <div className="p-3 space-y-2">
-                  {[...Array(5)].map((_, i) => (
-                    <div key={i} className="flex items-center gap-3 p-3">
-                      <Skeleton className="w-10 h-10 rounded-full shrink-0" />
-                      <div className="flex-1 space-y-2">
-                        <Skeleton className="h-3 w-24" />
-                        <Skeleton className="h-3 w-full" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : conversations.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground">
-                  <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>لا توجد محادثات</p>
-                </div>
-              ) : (
-                <div className="p-2 space-y-1">
-                  {conversations.map((conv, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setSelectedUser(conv.other?.id || null)}
-                      className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors text-right ${
-                        selectedUser === conv.other?.id ? 'bg-primary-50' : 'hover:bg-muted'
-                      }`}
-                    >
-                      <Avatar className="w-10 h-10 shrink-0">
-                        <AvatarFallback className="bg-primary-100 text-primary-600 text-sm font-bold">
-                          {conv.other?.full_name?.charAt(0) || '؟'}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-sm truncate">{conv.other?.full_name || 'مستخدم'}</span>
-                          {conv.unread > 0 && (
-                            <span className="w-5 h-5 rounded-full bg-primary-500 text-white text-xs flex items-center justify-center shrink-0">
-                              {conv.unread}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground truncate">{conv.lastMessage?.content || ''}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
-          </Card>
-
-          {/* Messages */}
-          <Card className="flex-1 border-border/60 overflow-hidden flex flex-col">
-            {selectedUser ? (
-              <>
-                <div className="p-4 border-b border-border flex items-center gap-3">
-                  <Avatar className="w-9 h-9">
-                    <AvatarFallback className="bg-primary-100 text-primary-600 text-sm font-bold">
-                      {selectedUserProfile?.full_name?.charAt(0) || '؟'}
+    <div className="container mx-auto px-4 py-4 h-[calc(100vh-5rem)]">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-full">
+        {/* Conversations List */}
+        <Card className="flex flex-col overflow-hidden">
+          <div className="p-4 border-b font-semibold text-sm">المحادثات</div>
+          <ScrollArea className="flex-1">
+            {loadingConversations ? (
+              <div className="p-4 space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="space-y-1.5 flex-1"><Skeleton className="h-3.5 w-3/4" /><Skeleton className="h-3 w-1/2" /></div>
+                  </div>
+                ))}
+              </div>
+            ) : conversations.length === 0 ? (
+              <div className="p-6 text-center text-muted-foreground text-sm">
+                <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                لا توجد محادثات
+              </div>
+            ) : (
+              conversations.map((conv) => (
+                <button
+                  key={conv.other?.id}
+                  onClick={() => setSelectedUserId(conv.other?.id || null)}
+                  className={`w-full flex items-center gap-3 p-4 border-b hover:bg-muted/50 transition-colors text-right ${selectedUserId === conv.other?.id ? 'bg-primary/5' : ''}`}
+                >
+                  <Avatar className="h-10 w-10 shrink-0">
+                    <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                      {conv.other?.full_name?.charAt(0) || '؟'}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="font-medium flex-1">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium text-sm truncate">{conv.other?.full_name || 'مستخدم'}</p>
+                      {conv.unread > 0 && <span className="h-5 w-5 rounded-full bg-primary text-white text-xs flex items-center justify-center font-bold shrink-0">{conv.unread}</span>}
+                    </div>
+                    {conv.lastMessage && (
+                      <p className="text-xs text-muted-foreground truncate">{conv.lastMessage.content}</p>
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
+          </ScrollArea>
+        </Card>
+
+        {/* Messages Panel */}
+        <Card className="md:col-span-2 flex flex-col overflow-hidden">
+          {!selectedUserId ? (
+            <div className="flex-1 flex items-center justify-center text-muted-foreground">
+              <div className="text-center">
+                <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                <p>اختر محادثة للبدء</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Header */}
+              <div className="p-4 border-b flex items-center gap-3">
+                <Avatar className="h-9 w-9">
+                  <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                    {selectedUserProfile?.full_name?.charAt(0) || '؟'}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <Link href={`/profile/${selectedUserId}`} className="font-medium text-sm hover:text-primary">
                     {selectedUserProfile?.full_name || 'مستخدم'}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setContractOpen(true)}
-                  >
-                    <FileText className="w-4 h-4 ml-2" />
-                    إنشاء عقد
-                  </Button>
-                </div>
-                <ScrollArea className="flex-1 p-4">
-                  {loadingMessages ? (
-                    <div className="space-y-3">
-                      {[...Array(4)].map((_, i) => (
-                        <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
-                          <Skeleton className="h-12 w-48 rounded-2xl" />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {messages.map((msg) => {
-                        const isMe = msg.sender_id === user.id;
-                        return (
-                          <div key={msg.id} className={`flex ${isMe ? 'justify-start' : 'justify-end'}`}>
-                            <div className={`max-w-[70%] px-4 py-2 rounded-2xl text-sm ${
-                              isMe
-                                ? 'bg-primary-500 text-white rounded-tr-none'
-                                : 'bg-muted text-foreground rounded-tl-none'
-                            }`}>
-                              <p>{msg.content}</p>
-                              <span className={`text-xs mt-1 block ${isMe ? 'text-primary-100' : 'text-muted-foreground'}`}>
-                                {new Date(msg.created_at).toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                      <div ref={messagesEndRef} />
-                    </div>
-                  )}
-                </ScrollArea>
-                <form onSubmit={handleSend} className="p-4 border-t border-border flex items-center gap-2">
-                  <Input
-                    placeholder="اكتب رسالة..."
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button type="submit" size="icon" className="bg-primary-500 hover:bg-primary-600 text-white shrink-0" disabled={sending || !newMessage.trim()}>
-                    {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  </Button>
-                </form>
-              </>
-            ) : (
-              <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                <div className="text-center">
-                  <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <p>اختر محادثة لبدء المراسلة</p>
+                  </Link>
+                  <p className="text-xs text-muted-foreground">{selectedUserProfile?.specialty || selectedUserProfile?.role || ''}</p>
                 </div>
               </div>
-            )}
-          </Card>
-        </div>
-      </div>
 
-      <Dialog open={contractOpen} onOpenChange={setContractOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>إنشاء عقد جديد</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleCreateContract} className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <Label>عنوان العقد</Label>
-              <Input
-                value={contractForm.title}
-                onChange={(e) => setContractForm({ ...contractForm, title: e.target.value })}
-                placeholder="مثال: ترميم منزل، سباكة، كهرباء..."
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>الوصف</Label>
-              <Textarea
-                value={contractForm.description}
-                onChange={(e) => setContractForm({ ...contractForm, description: e.target.value })}
-                placeholder="تفاصيل العمل..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>المبلغ (دج)</Label>
-              <Input
-                type="number"
-                value={contractForm.amount}
-                onChange={(e) => setContractForm({ ...contractForm, amount: e.target.value })}
-                placeholder="0"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>الشروط</Label>
-              <Textarea
-                value={contractForm.terms}
-                onChange={(e) => setContractForm({ ...contractForm, terms: e.target.value })}
-                placeholder="شروط العمل، مدة التنفيذ، طريقة الدفع..."
-              />
-            </div>
-            <Button type="submit" className="w-full bg-primary-500 hover:bg-primary-600 text-white" disabled={creatingContract}>
-              {creatingContract ? <Loader2 className="w-4 h-4 animate-spin" /> : 'إنشاء العقد'}
-            </Button>
-          </form>
-        </DialogContent>
-      </Dialog>
+              {/* Messages */}
+              <ScrollArea className="flex-1 p-4">
+                {loadingMessages ? (
+                  <div className="space-y-3">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
+                        <Skeleton className="h-10 w-48 rounded-xl" />
+                      </div>
+                    ))}
+                  </div>
+                ) : messages.length === 0 ? (
+                  <div className="text-center text-muted-foreground text-sm py-8">ابدأ المحادثة</div>
+                ) : (
+                  <div className="space-y-3">
+                    {messages.map((msg) => {
+                      const isMe = msg.sender_id === user.id;
+                      return (
+                        <div key={msg.id} className={`flex ${isMe ? 'justify-start' : 'justify-end'}`}>
+                          <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm ${isMe ? 'bg-primary text-white rounded-br-sm' : 'bg-muted text-foreground rounded-bl-sm'}`}>
+                            <p>{msg.content}</p>
+                            <p className={`text-xs mt-1 ${isMe ? 'text-white/70' : 'text-muted-foreground'}`}>
+                              {new Date(msg.created_at).toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div ref={messagesEndRef} />
+                  </div>
+                )}
+              </ScrollArea>
+
+              {/* Input */}
+              <form onSubmit={sendMessage} className="p-4 border-t flex gap-2">
+                <Input
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="اكتب رسالة..."
+                  className="flex-1"
+                  disabled={sending}
+                />
+                <Button type="submit" disabled={sending || !newMessage.trim()} size="icon">
+                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </Button>
+              </form>
+            </>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }

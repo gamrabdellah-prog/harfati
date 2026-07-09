@@ -1,36 +1,26 @@
 'use client';
-
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import type { User, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import type { Tables } from '@/lib/supabase';
 
+type Profile = Tables['profiles'];
+
 interface AuthContextType {
-  user: { id: string; email: string } | null;
-  profile: Tables['profiles'] | null;
+  user: User | null;
+  profile: Profile | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, role: 'worker' | 'employer', fullName: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signUp: (email: string, password: string, role: 'worker' | 'employer', fullName: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  profile: null,
-  loading: true,
-  signIn: async () => ({ error: null }),
-  signUp: async () => ({ error: null }),
-  signOut: async () => {},
-  refreshProfile: async () => {},
-});
-
-export function useAuth() {
-  return useContext(AuthContext);
-}
+const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<{ id: string; email: string } | null>(null);
-  const [profile, setProfile] = useState<Tables['profiles'] | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (userId: string) => {
@@ -39,32 +29,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .select('*')
       .eq('id', userId)
       .maybeSingle();
-    if (data) {
-      setProfile(data as Tables['profiles']);
-    }
+    setProfile(data ?? null);
   }, []);
 
+  const refreshProfile = useCallback(async () => {
+    if (user) await fetchProfile(user.id);
+  }, [user, fetchProfile]);
+
   useEffect(() => {
+    let mounted = true;
+
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      setUser(session?.user ?? null);
       if (session?.user) {
-        setUser({ id: session.user.id, email: session.user.email || '' });
-        fetchProfile(session.user.id);
+        fetchProfile(session.user.id).finally(() => {
+          if (mounted) setLoading(false);
+        });
+      } else {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      setUser(session?.user ?? null);
       if (session?.user) {
-        setUser({ id: session.user.id, email: session.user.email || '' });
         fetchProfile(session.user.id);
       } else {
-        setUser(null);
         setProfile(null);
       }
-      setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [fetchProfile]);
 
   const signIn = async (email: string, password: string) => {
@@ -74,16 +74,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string, role: 'worker' | 'employer', fullName: string) => {
     const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) return { error };
-    if (data.user) {
-      const { error: profileError } = await supabase.from('profiles').insert({
+    if (!error && data.user) {
+      await supabase.from('profiles').upsert({
         id: data.user.id,
         role,
         full_name: fullName,
+        skills: [],
+        certificates_urls: [],
+        availability: 'available',
+        avg_rating: 0,
+        review_count: 0,
       });
-      return { error: profileError };
     }
-    return { error: null };
+    return { error };
   };
 
   const signOut = async () => {
@@ -92,15 +95,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile(null);
   };
 
-  const refreshProfile = async () => {
-    if (user) {
-      await fetchProfile(user.id);
-    }
-  };
-
   return (
     <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  return ctx;
 }

@@ -14,23 +14,16 @@ const tajawal = Tajawal({
 export const metadata: Metadata = {
   title: 'حرفتي - منصة الحرفيين الجزائرية',
   description: 'منصة جزائرية تربط الحرفيين وأصحاب العمل في الجزائر',
-  metadataBase: new URL('https://harafati.vercel.app'),
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ar" dir="rtl">
-      <body className={tajawal.className}>
+    <html lang="ar" dir="rtl" className={tajawal.className}>
+      <body>
         <AuthProvider>
-          <div className="min-h-screen flex flex-col">
-            <Navbar />
-            <main className="flex-1 page-enter">{children}</main>
-            <Toaster position="top-left" />
-          </div>
+          <Navbar />
+          <main className="min-h-screen">{children}</main>
+          <Toaster position="top-center" richColors />
         </AuthProvider>
       </body>
     </html>

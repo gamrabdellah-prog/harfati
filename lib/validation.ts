@@ -1,6 +1,3 @@
-// Input validation + sanitization helpers shared across forms.
-// Mirrors the DB CHECK constraints so we reject bad input before it hits Supabase.
-
 export const sanitizeText = (value: string): string =>
   value.replace(/\u0000/g, '').trim();
 

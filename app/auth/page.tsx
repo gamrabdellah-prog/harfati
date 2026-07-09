@@ -1,19 +1,19 @@
 'use client';
-
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/app/providers';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Hammer, Building2, User, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Hammer, Building2, User, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateEmail, validatePassword, validateFullName, sanitizeText } from '@/lib/validation';
 
 export default function AuthPage() {
-  const [tab, setTab] = useState<'login' | 'register'>('login');
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<'login' | 'register'>(searchParams.get('tab') === 'register' ? 'register' : 'login');
   const [role, setRole] = useState<'worker' | 'employer'>('worker');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -21,7 +21,11 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const router = useRouter();
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, user } = useAuth();
+
+  useEffect(() => {
+    if (user) router.push('/');
+  }, [user, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,9 +37,9 @@ export default function AuthPage() {
     const { error } = await signIn(email.trim(), password);
     setLoading(false);
     if (error) {
-      toast.error('فشل تسجيل الدخول: ' + error.message);
+      toast.error('فشل تسجيل الدخول: ' + (error.message.includes('Invalid') ? 'البريد أو كلمة المرور غير صحيحة' : error.message));
     } else {
-      toast.success('تم تسجيل الدخول بنجاح');
+      toast.success('مرحباً بك!');
       router.push('/');
     }
   };
@@ -54,186 +58,129 @@ export default function AuthPage() {
     if (error) {
       toast.error('فشل إنشاء الحساب: ' + error.message);
     } else {
-      toast.success('تم إنشاء الحساب بنجاح، يمكنك الآن تسجيل الدخول');
+      toast.success('تم إنشاء الحساب بنجاح!');
       setTab('login');
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center py-12 px-4 geometric-pattern">
+    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-primary-500 flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <Hammer className="w-8 h-8 text-white" />
+          <div className="inline-flex items-center gap-2 text-primary font-bold text-3xl mb-2">
+            <Hammer className="h-8 w-8" />
+            <span>حرفتي</span>
           </div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">حرفتي</h1>
           <p className="text-muted-foreground">منصة الحرفيين الجزائرية</p>
         </div>
 
-        <Card className="border-border/60 shadow-lg">
-          <Tabs value={tab} onValueChange={(v) => setTab(v as 'login' | 'register')}>
-            <TabsList className="grid w-full grid-cols-2 rounded-none border-b border-border bg-transparent p-0 h-12">
-              <TabsTrigger
-                value="login"
-                className="rounded-none data-[state=active]:border-b-2 data-[state=active]:border-primary-500 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm font-medium"
-              >
-                تسجيل الدخول
-              </TabsTrigger>
-              <TabsTrigger
-                value="register"
-                className="rounded-none data-[state=active]:border-b-2 data-[state=active]:border-primary-500 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm font-medium"
-              >
-                إنشاء حساب
-              </TabsTrigger>
-            </TabsList>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as 'login' | 'register')}>
+          <TabsList className="w-full mb-6">
+            <TabsTrigger value="login" className="flex-1">تسجيل الدخول</TabsTrigger>
+            <TabsTrigger value="register" className="flex-1">إنشاء حساب</TabsTrigger>
+          </TabsList>
 
-            <TabsContent value="login" className="m-0">
-              <CardHeader className="space-y-1 pb-4">
-                <CardTitle className="text-xl">تسجيل الدخول</CardTitle>
+          <TabsContent value="login">
+            <Card>
+              <CardHeader>
+                <CardTitle>تسجيل الدخول</CardTitle>
                 <CardDescription>أدخل بياناتك للوصول إلى حسابك</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="login-email">البريد الإلكتروني</Label>
-                    <div className="relative">
-                      <Mail className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="login-email"
-                        type="email"
-                        placeholder="example@email.com"
-                        className="pr-10"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                      />
-                    </div>
+                    <Input id="login-email" type="email" placeholder="example@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="login-password">كلمة المرور</Label>
                     <div className="relative">
-                      <Lock className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground" />
                       <Input
                         id="login-password"
                         type={showPassword ? 'text' : 'password'}
                         placeholder="••••••••"
-                        className="pr-10 pl-10"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
                       />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute left-3 top-2.5 text-muted-foreground hover:text-foreground"
-                      >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
                   </div>
-                  <Button type="submit" className="w-full bg-primary-500 hover:bg-primary-600 text-white" disabled={loading}>
-                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'تسجيل الدخول'}
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    تسجيل الدخول
                   </Button>
                 </form>
               </CardContent>
-            </TabsContent>
+            </Card>
+          </TabsContent>
 
-            <TabsContent value="register" className="m-0">
-              <CardHeader className="space-y-1 pb-4">
-                <CardTitle className="text-xl">إنشاء حساب جديد</CardTitle>
+          <TabsContent value="register">
+            <Card>
+              <CardHeader>
+                <CardTitle>إنشاء حساب جديد</CardTitle>
                 <CardDescription>اختر نوع الحساب وأدخل بياناتك</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleRegister} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>نوع الحساب</Label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setRole('worker')}
-                        className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                          role === 'worker'
-                            ? 'border-primary-500 bg-primary-50 text-primary-600'
-                            : 'border-border bg-card text-muted-foreground hover:border-primary-300'
-                        }`}
-                      >
-                        <Hammer className="w-6 h-6" />
-                        <span className="text-sm font-medium">حرفي / موظف</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRole('employer')}
-                        className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                          role === 'employer'
-                            ? 'border-primary-500 bg-primary-50 text-primary-600'
-                            : 'border-border bg-card text-muted-foreground hover:border-primary-300'
-                        }`}
-                      >
-                        <Building2 className="w-6 h-6" />
-                        <span className="text-sm font-medium">صاحب عمل</span>
-                      </button>
-                    </div>
+                  {/* Role Selector */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setRole('worker')}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-colors ${role === 'worker' ? 'border-primary bg-primary/5 text-primary' : 'border-border hover:border-primary/50'}`}
+                    >
+                      <Hammer className="h-6 w-6" />
+                      <span className="text-sm font-medium">حرفي / عامل</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRole('employer')}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-colors ${role === 'employer' ? 'border-primary bg-primary/5 text-primary' : 'border-border hover:border-primary/50'}`}
+                    >
+                      <Building2 className="h-6 w-6" />
+                      <span className="text-sm font-medium">صاحب عمل</span>
+                    </button>
                   </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="reg-name">الاسم الكامل</Label>
                     <div className="relative">
-                      <User className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="reg-name"
-                        placeholder="الاسم واللقب"
-                        className="pr-10"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        required
-                      />
+                      <User className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input id="reg-name" placeholder="أدخل اسمك الكامل" className="pr-9" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="reg-email">البريد الإلكتروني</Label>
-                    <div className="relative">
-                      <Mail className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="reg-email"
-                        type="email"
-                        placeholder="example@email.com"
-                        className="pr-10"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                      />
-                    </div>
+                    <Input id="reg-email" type="email" placeholder="example@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="reg-password">كلمة المرور</Label>
                     <div className="relative">
-                      <Lock className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground" />
                       <Input
                         id="reg-password"
                         type={showPassword ? 'text' : 'password'}
                         placeholder="8 أحرف على الأقل"
-                        className="pr-10 pl-10"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        minLength={8}
                         required
                       />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute left-3 top-2.5 text-muted-foreground hover:text-foreground"
-                      >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
                   </div>
-                  <Button type="submit" className="w-full bg-primary-500 hover:bg-primary-600 text-white" disabled={loading}>
-                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'إنشاء الحساب'}
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    إنشاء الحساب
                   </Button>
                 </form>
               </CardContent>
-            </TabsContent>
-          </Tabs>
-        </Card>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

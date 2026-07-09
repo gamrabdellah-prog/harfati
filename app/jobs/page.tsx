@@ -1,11 +1,10 @@
 'use client';
-
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/app/providers';
 import { supabase } from '@/lib/supabase';
 import type { Tables } from '@/lib/supabase';
-import { SPECIALTY_CATEGORIES, ALL_SPECIALTY_LABELS } from '@/lib/specialties';
+import { ALL_SPECIALTY_LABELS } from '@/lib/specialties';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,13 +12,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { MapPin, Briefcase, Plus, Loader2 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { MapPin, Briefcase, Plus, Loader2, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateTitle, validateDescription, validateAmount, sanitizeText } from '@/lib/validation';
 
+type Job = Tables['jobs'] & { employer: Tables['profiles'] | null };
+
 export default function JobsPage() {
   const { user, profile } = useAuth();
-  const [jobs, setJobs] = useState<(Tables['jobs'] & { employer: Tables['profiles'] | null })[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [wilayas, setWilayas] = useState<Tables['wilayas'][]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -29,23 +31,19 @@ export default function JobsPage() {
   const [budget, setBudget] = useState('');
   const [wilayaId, setWilayaId] = useState('');
   const [specialty, setSpecialty] = useState('');
-
   const specialties = [...ALL_SPECIALTY_LABELS, 'عام'];
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const { data } = await supabase
-        .from('jobs')
-        .select('*, employer:profiles!jobs_employer_id_fkey(*)')
-        .eq('status', 'open')
-        .order('created_at', { ascending: false });
-      setJobs(data || []);
-      const { data: w } = await supabase.from('wilayas').select('*').order('id');
-      setWilayas(w || []);
-      setLoading(false);
-    };
-    fetchData();
-  }, []);
+  const fetchJobs = async () => {
+    const [{ data }, { data: w }] = await Promise.all([
+      supabase.from('jobs').select('*, employer:profiles!jobs_employer_id_fkey(*)').eq('status', 'open').order('created_at', { ascending: false }),
+      supabase.from('wilayas').select('*').order('id'),
+    ]);
+    setJobs((data as Job[]) || []);
+    setWilayas(w || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchJobs(); }, []);
 
   const handleCreateJob = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,132 +72,122 @@ export default function JobsPage() {
     } else {
       toast.success('تم نشر الوظيفة بنجاح');
       setDialogOpen(false);
-      setTitle('');
-      setDescription('');
-      setBudget('');
-      setWilayaId('');
-      setSpecialty('');
-      const { data } = await supabase
-        .from('jobs')
-        .select('*, employer:profiles!jobs_employer_id_fkey(*)')
-        .eq('status', 'open')
-        .order('created_at', { ascending: false });
-      setJobs(data || []);
+      setTitle(''); setDescription(''); setBudget(''); setWilayaId(''); setSpecialty('');
+      fetchJobs();
     }
   };
 
+  const wilayaName = (id: number | null) => wilayas.find((w) => w.id === id)?.name || 'الجزائر';
+
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold">الوظائف</h1>
-            <p className="text-muted-foreground">اكتشف فرص العمل أو انشر وظيفة جديدة</p>
-          </div>
-          {profile?.role === 'employer' && (
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-primary-500 hover:bg-primary-600 text-white">
-                  <Plus className="w-4 h-4 mr-2" />
-                  نشر وظيفة
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>نشر وظيفة جديدة</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleCreateJob} className="space-y-4 mt-4">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold mb-1">الوظائف</h1>
+          <p className="text-muted-foreground">اكتشف فرص العمل أو انشر وظيفة جديدة</p>
+        </div>
+        {profile?.role === 'employer' && (
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                نشر وظيفة
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>نشر وظيفة جديدة</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleCreateJob} className="space-y-4 mt-2">
+                <div className="space-y-2">
+                  <Label>عنوان الوظيفة *</Label>
+                  <Input placeholder="مثال: نجار لتركيب خزائن" value={title} onChange={(e) => setTitle(e.target.value)} required />
+                </div>
+                <div className="space-y-2">
+                  <Label>الوصف *</Label>
+                  <Textarea placeholder="اشرح العمل المطلوب بالتفصيل..." rows={4} value={description} onChange={(e) => setDescription(e.target.value)} required />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>العنوان</Label>
-                    <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="مثال: نجار مطلوب للأثاث" required />
+                    <Label>الميزانية (دج)</Label>
+                    <Input type="number" placeholder="مثال: 5000" value={budget} onChange={(e) => setBudget(e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label>الوصف</Label>
-                    <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="وصف التفاصيل والمتطلبات..." required />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label>الميزانية (دج)</Label>
-                      <Input type="number" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="اختياري" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>الولاية</Label>
-                      <select className="w-full h-10 rounded-md border border-input bg-transparent px-3 py-2 text-sm" value={wilayaId} onChange={(e) => setWilayaId(e.target.value)}>
-                        <option value="">اختياري</option>
-                        {wilayas.map((w) => (
-                          <option key={w.id} value={w.id}>{w.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>التخصص المطلوب</Label>
-                    <select className="w-full h-10 rounded-md border border-input bg-transparent px-3 py-2 text-sm" value={specialty} onChange={(e) => setSpecialty(e.target.value)}>
-                      <option value="">اختياري</option>
-                      {SPECIALTY_CATEGORIES.map((cat) => (
-                        <optgroup key={cat.name} label={cat.name}>
-                          {cat.specialties.map((s) => (
-                            <option key={s.label} value={s.label}>{s.label}</option>
-                          ))}
-                        </optgroup>
-                      ))}
-                      <option value="عام">عام</option>
+                    <Label>الولاية</Label>
+                    <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none" value={wilayaId} onChange={(e) => setWilayaId(e.target.value)}>
+                      <option value="">اختر الولاية</option>
+                      {wilayas.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
                     </select>
                   </div>
-                  <Button type="submit" className="w-full bg-primary-500 hover:bg-primary-600 text-white" disabled={submitting}>
-                    {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'نشر الوظيفة'}
+                </div>
+                <div className="space-y-2">
+                  <Label>التخصص</Label>
+                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none" value={specialty} onChange={(e) => setSpecialty(e.target.value)}>
+                    <option value="">اختر التخصص</option>
+                    {specialties.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div className="flex justify-end gap-3 pt-2">
+                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>إلغاء</Button>
+                  <Button type="submit" disabled={submitting}>
+                    {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    نشر الوظيفة
                   </Button>
-                </form>
-              </DialogContent>
-            </Dialog>
-          )}
-        </div>
-
-        {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[...Array(4)].map((_, i) => (
-              <Card key={i} className="animate-pulse h-32" />
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {jobs.length === 0 ? (
-              <div className="col-span-2 text-center py-12 text-muted-foreground">
-                <Briefcase className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>لا توجد وظائف متاحة حالياً</p>
-              </div>
-            ) : (
-              jobs.map((job) => (
-                <Link key={job.id} href={`/jobs/${job.id}`}>
-                  <Card className="h-full hover:shadow-md transition-shadow border-border/60 cursor-pointer">
-                    <CardContent className="p-5">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <h3 className="font-bold text-foreground mb-1">{job.title}</h3>
-                          <p className="text-sm text-muted-foreground line-clamp-2 mb-2">{job.description}</p>
-                          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <MapPin className="w-3 h-3" />
-                              {wilayas.find(w => w.id === job.wilaya_id)?.name || 'الجزائر'}
-                            </span>
-                            {job.budget && (
-                              <span className="font-medium text-primary-500">{job.budget} دج</span>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-2">
-                            صاحب العمل: {job.employer?.full_name || 'غير معروف'}
-                          </p>
-                        </div>
-                        <Badge variant="outline" className="shrink-0 text-xs">{job.specialty || 'عام'}</Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))
-            )}
-          </div>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
+
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="rounded-xl border p-5 space-y-3">
+              <Skeleton className="h-5 w-3/4" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+          ))}
+        </div>
+      ) : jobs.length === 0 ? (
+        <div className="text-center py-20 text-muted-foreground">
+          <Briefcase className="h-12 w-12 mx-auto mb-3 opacity-30" />
+          <p className="text-lg">لا توجد وظائف متاحة حالياً</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {jobs.map((job) => (
+            <Link key={job.id} href={`/jobs/${job.id}`}>
+              <Card className="card-hover h-full cursor-pointer">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <h3 className="font-semibold text-foreground">{job.title}</h3>
+                    {job.budget && (
+                      <span className="text-primary font-bold text-sm shrink-0">{job.budget.toLocaleString()} دج</span>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground line-clamp-2 mb-3">{job.description}</p>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    <Badge variant="outline" className="text-xs flex items-center gap-1">
+                      <MapPin className="h-3 w-3" />
+                      {wilayaName(job.wilaya_id)}
+                    </Badge>
+                    {job.specialty && <Badge variant="secondary" className="text-xs">{job.specialty}</Badge>}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Calendar className="h-3 w-3" />
+                    <span>{new Date(job.created_at).toLocaleDateString('ar-DZ')}</span>
+                    {job.employer && (
+                      <span className="mr-auto">{job.employer.full_name || 'صاحب عمل'}</span>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
