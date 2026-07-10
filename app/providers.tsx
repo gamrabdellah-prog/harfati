@@ -24,7 +24,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (userId: string) => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
     setProfile(data ?? null);
   }, []);
 
@@ -34,6 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return;
       setUser(session?.user ?? null);
@@ -45,13 +50,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       }
     });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
       setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
-      else setProfile(null);
+      if (session?.user) {
+        fetchProfile(session.user.id);
+      } else {
+        setProfile(null);
+      }
     });
-    return () => { mounted = false; subscription.unsubscribe(); };
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [fetchProfile]);
 
   const signIn = async (email: string, password: string) => {
@@ -63,9 +76,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (!error && data.user) {
       await supabase.from('profiles').upsert({
-        id: data.user.id, role, full_name: fullName,
-        skills: [], certificates_urls: [], availability: 'available',
-        avg_rating: 0, review_count: 0,
+        id: data.user.id,
+        role,
+        full_name: fullName,
+        skills: [],
+        certificates_urls: [],
+        availability: 'available',
+        avg_rating: 0,
+        review_count: 0,
       });
     }
     return { error };

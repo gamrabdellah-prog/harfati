@@ -5,12 +5,15 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/app/providers';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuTrigger, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import {
-  Search, Menu, Bell, MessageSquare, LogOut,
-  Home, Briefcase, FileText, LayoutDashboard, ChevronDown,
+  Search, Menu, Bell, MessageSquare, User, LogOut, Home,
+  Briefcase, FileText, LayoutDashboard, ChevronDown, Hammer,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
@@ -23,9 +26,9 @@ export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const fn = () => setScrolled(window.scrollY > 10);
-    window.addEventListener('scroll', fn);
-    return () => window.removeEventListener('scroll', fn);
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    window.addEventListener('scroll', onScroll);
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   useEffect(() => {
@@ -39,8 +42,8 @@ export function Navbar() {
       setUnreadNotifs(n || 0);
     };
     fetchCounts();
-    const id = setInterval(fetchCounts, 20000);
-    return () => clearInterval(id);
+    const interval = setInterval(fetchCounts, 15000);
+    return () => clearInterval(interval);
   }, [user]);
 
   const navLinks = [
@@ -50,57 +53,51 @@ export function Navbar() {
   ];
 
   const isActive = (href: string) => pathname === href;
-  const initials = profile?.full_name?.charAt(0) || user?.email?.charAt(0)?.toUpperCase() || '?';
+  const initials = profile?.full_name?.charAt(0) || user?.email?.charAt(0)?.toUpperCase() || '؟';
 
   return (
-    <header className={`sticky top-0 z-50 w-full border-b transition-all duration-200 ${scrolled ? 'bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-sm' : 'bg-white'}`}>
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
+    <nav className={`sticky top-0 z-40 w-full transition-all duration-300 ${scrolled ? 'bg-white/95 backdrop-blur-md shadow-sm border-b border-border' : 'bg-white border-b border-border'}`}>
+      <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 font-bold text-xl text-orange-500">
-          <span className="text-2xl">🔨</span>
+        <Link href="/" className="flex items-center gap-2 font-bold text-xl text-primary shrink-0">
+          <Hammer className="h-6 w-6" />
           <span>حرفتي</span>
         </Link>
 
-        {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-1">
-          {navLinks.map((l) => (
+        {/* Desktop Nav */}
+        <div className="hidden md:flex items-center gap-1">
+          {navLinks.map((link) => (
             <Link
-              key={l.href}
-              href={l.href}
+              key={link.href}
+              href={link.href}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                isActive(l.href)
-                  ? 'text-orange-600 bg-orange-50'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                isActive(link.href)
+                  ? 'text-primary bg-primary/10'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
               }`}
             >
-              <l.icon className="h-4 w-4" />
-              {l.label}
+              <link.icon className="h-4 w-4" />
+              {link.label}
             </Link>
           ))}
-        </nav>
+        </div>
 
-        {/* Right actions */}
+        {/* Right Actions */}
         <div className="flex items-center gap-2">
           {user ? (
             <>
-              <Link
-                href="/messages"
-                className="relative hidden md:flex h-9 w-9 items-center justify-center rounded-md hover:bg-gray-100 transition-colors"
-              >
-                <MessageSquare className="h-5 w-5 text-gray-600" />
+              <Link href="/messages" className="relative hidden md:flex items-center justify-center h-9 w-9 rounded-md hover:bg-muted transition-colors">
+                <MessageSquare className="h-5 w-5 text-muted-foreground" />
                 {unreadMessages > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-orange-500 text-[10px] text-white flex items-center justify-center font-bold">
+                  <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-primary text-[10px] text-white flex items-center justify-center font-bold">
                     {unreadMessages > 9 ? '9+' : unreadMessages}
                   </span>
                 )}
               </Link>
-              <Link
-                href="/notifications"
-                className="relative hidden md:flex h-9 w-9 items-center justify-center rounded-md hover:bg-gray-100 transition-colors"
-              >
-                <Bell className="h-5 w-5 text-gray-600" />
+              <Link href="/notifications" className="relative hidden md:flex items-center justify-center h-9 w-9 rounded-md hover:bg-muted transition-colors">
+                <Bell className="h-5 w-5 text-muted-foreground" />
                 {unreadNotifs > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-orange-500 text-[10px] text-white flex items-center justify-center font-bold">
+                  <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-primary text-[10px] text-white flex items-center justify-center font-bold">
                     {unreadNotifs > 9 ? '9+' : unreadNotifs}
                   </span>
                 )}
@@ -108,22 +105,20 @@ export function Navbar() {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="hidden md:flex items-center gap-2 rounded-md px-2 py-1 hover:bg-gray-100 transition-colors">
+                  <button className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-muted transition-colors">
                     <Avatar className="h-8 w-8">
-                      <AvatarFallback className="bg-orange-500 text-white text-sm font-bold">
+                      <AvatarFallback className="bg-primary text-white text-sm font-bold">
                         {initials}
                       </AvatarFallback>
                     </Avatar>
-                    <ChevronDown className="h-3 w-3 text-gray-500" />
+                    <ChevronDown className="h-3 w-3 text-muted-foreground hidden md:block" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuLabel>
-                    <p className="font-medium text-sm">{profile?.full_name || user.email}</p>
-                    <p className="text-xs text-muted-foreground font-normal">
-                      {profile?.role === 'worker' ? 'حرفي' : 'صاحب عمل'}
-                    </p>
-                  </DropdownMenuLabel>
+                  <div className="px-2 py-1.5">
+                    <p className="text-sm font-medium">{profile?.full_name || user.email}</p>
+                    <p className="text-xs text-muted-foreground">{profile?.role === 'worker' ? 'حرفي' : 'صاحب عمل'}</p>
+                  </div>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
                     <Link href="/dashboard" className="flex items-center gap-2 cursor-pointer">
@@ -133,10 +128,8 @@ export function Navbar() {
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href={`/profile/${user.id}`} className="flex items-center gap-2 cursor-pointer">
-                      <Avatar className="h-4 w-4">
-                        <AvatarFallback className="text-[8px]">{initials}</AvatarFallback>
-                      </Avatar>
-                      ملفي الشخصي
+                      <User className="h-4 w-4" />
+                      الملف الشخصي
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
@@ -146,10 +139,7 @@ export function Navbar() {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={signOut}
-                    className="flex items-center gap-2 cursor-pointer text-red-600 focus:text-red-600"
-                  >
+                  <DropdownMenuItem onClick={signOut} className="flex items-center gap-2 cursor-pointer text-destructive focus:text-destructive">
                     <LogOut className="h-4 w-4" />
                     تسجيل الخروج
                   </DropdownMenuItem>
@@ -161,13 +151,13 @@ export function Navbar() {
               <Button variant="ghost" size="sm" asChild>
                 <Link href="/auth">تسجيل الدخول</Link>
               </Button>
-              <Button size="sm" className="bg-orange-500 hover:bg-orange-600" asChild>
+              <Button size="sm" asChild>
                 <Link href="/auth?tab=register">إنشاء حساب</Link>
               </Button>
             </div>
           )}
 
-          {/* Mobile menu */}
+          {/* Mobile Menu */}
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="md:hidden">
@@ -175,56 +165,57 @@ export function Navbar() {
               </Button>
             </SheetTrigger>
             <SheetContent side="right" className="w-72">
-              <SheetHeader>
-                <SheetTitle className="text-right">
-                  <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 text-orange-500 font-bold text-lg">
-                    <span>🔨</span> حرفتي
-                  </Link>
-                </SheetTitle>
-              </SheetHeader>
+              <SheetTitle className="text-right">
+                <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 text-primary font-bold text-lg">
+                  <Hammer className="h-5 w-5" />
+                  حرفتي
+                </Link>
+              </SheetTitle>
               <div className="mt-6 flex flex-col gap-1">
-                {navLinks.map((l) => (
+                {navLinks.map((link) => (
                   <Link
-                    key={l.href}
-                    href={l.href}
+                    key={link.href}
+                    href={link.href}
                     onClick={() => setMobileOpen(false)}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium ${
-                      isActive(l.href) ? 'text-orange-600 bg-orange-50' : 'hover:bg-gray-100'
+                      isActive(link.href) ? 'text-primary bg-primary/10' : 'hover:bg-muted'
                     }`}
                   >
-                    <l.icon className="h-4 w-4" />
-                    {l.label}
+                    <link.icon className="h-4 w-4" />
+                    {link.label}
                   </Link>
                 ))}
                 {user ? (
                   <>
-                    <Link href="/dashboard" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm hover:bg-gray-100">
-                      <LayoutDashboard className="h-4 w-4" /> لوحة التحكم
+                    <Link href="/messages" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm hover:bg-muted">
+                      <MessageSquare className="h-4 w-4" />
+                      الرسائل
+                      {unreadMessages > 0 && <Badge className="mr-auto text-xs">{unreadMessages}</Badge>}
                     </Link>
-                    <Link href="/messages" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm hover:bg-gray-100">
-                      <MessageSquare className="h-4 w-4" /> الرسائل
-                      {unreadMessages > 0 && <Badge className="mr-auto bg-orange-500 text-xs">{unreadMessages}</Badge>}
+                    <Link href="/notifications" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm hover:bg-muted">
+                      <Bell className="h-4 w-4" />
+                      الإشعارات
+                      {unreadNotifs > 0 && <Badge className="mr-auto text-xs">{unreadNotifs}</Badge>}
                     </Link>
-                    <Link href="/notifications" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm hover:bg-gray-100">
-                      <Bell className="h-4 w-4" /> الإشعارات
-                      {unreadNotifs > 0 && <Badge className="mr-auto bg-orange-500 text-xs">{unreadNotifs}</Badge>}
+                    <Link href="/dashboard" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm hover:bg-muted">
+                      <LayoutDashboard className="h-4 w-4" />
+                      لوحة التحكم
                     </Link>
-                    <Link href="/contracts" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm hover:bg-gray-100">
-                      <FileText className="h-4 w-4" /> العقود
+                    <Link href="/contracts" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm hover:bg-muted">
+                      <FileText className="h-4 w-4" />
+                      العقود
                     </Link>
-                    <button
-                      onClick={() => { signOut(); setMobileOpen(false); }}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-red-600 hover:bg-red-50 w-full text-right mt-2"
-                    >
-                      <LogOut className="h-4 w-4" /> تسجيل الخروج
+                    <button onClick={() => { signOut(); setMobileOpen(false); }} className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-destructive hover:bg-muted w-full text-right mt-2">
+                      <LogOut className="h-4 w-4" />
+                      تسجيل الخروج
                     </button>
                   </>
                 ) : (
-                  <div className="flex flex-col gap-2 mt-4 px-3">
+                  <div className="flex flex-col gap-2 mt-4">
                     <Button variant="outline" asChild>
                       <Link href="/auth" onClick={() => setMobileOpen(false)}>تسجيل الدخول</Link>
                     </Button>
-                    <Button className="bg-orange-500 hover:bg-orange-600" asChild>
+                    <Button asChild>
                       <Link href="/auth?tab=register" onClick={() => setMobileOpen(false)}>إنشاء حساب</Link>
                     </Button>
                   </div>
@@ -234,6 +225,6 @@ export function Navbar() {
           </Sheet>
         </div>
       </div>
-    </header>
+    </nav>
   );
 }
