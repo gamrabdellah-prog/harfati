@@ -7,13 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Hammer, Building2, User, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateEmail, validatePassword, validateFullName, sanitizeText } from '@/lib/validation';
 
 export default function AuthPage() {
   const searchParams = useSearchParams();
-  const [tab, setTab] = useState<'login' | 'register'>(searchParams.get('tab') === 'register' ? 'register' : 'login');
+  const [tab, setTab] = useState<'login' | 'register'>(
+    searchParams.get('tab') === 'register' ? 'register' : 'login'
+  );
   const [role, setRole] = useState<'worker' | 'employer'>('worker');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -23,21 +25,23 @@ export default function AuthPage() {
   const router = useRouter();
   const { signIn, signUp, user } = useAuth();
 
-  useEffect(() => {
-    if (user) router.push('/');
-  }, [user, router]);
+  useEffect(() => { if (user) router.push('/'); }, [user, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const emailErr = validateEmail(email);
-    const passErr = validatePassword(password);
     if (emailErr) { toast.error(emailErr); return; }
+    const passErr = validatePassword(password);
     if (passErr) { toast.error(passErr); return; }
     setLoading(true);
     const { error } = await signIn(email.trim(), password);
     setLoading(false);
     if (error) {
-      toast.error('فشل تسجيل الدخول: ' + (error.message.includes('Invalid') ? 'البريد أو كلمة المرور غير صحيحة' : error.message));
+      toast.error(
+        error.message.includes('Invalid') || error.message.includes('credentials')
+          ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة'
+          : 'فشل تسجيل الدخول: ' + error.message
+      );
     } else {
       toast.success('مرحباً بك!');
       router.push('/');
@@ -47,10 +51,10 @@ export default function AuthPage() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     const nameErr = validateFullName(fullName);
-    const emailErr = validateEmail(email);
-    const passErr = validatePassword(password);
     if (nameErr) { toast.error(nameErr); return; }
+    const emailErr = validateEmail(email);
     if (emailErr) { toast.error(emailErr); return; }
+    const passErr = validatePassword(password);
     if (passErr) { toast.error(passErr); return; }
     setLoading(true);
     const { error } = await signUp(email.trim(), password, role, sanitizeText(fullName));
@@ -64,14 +68,12 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 text-primary font-bold text-3xl mb-2">
-            <Hammer className="h-8 w-8" />
-            <span>حرفتي</span>
-          </div>
-          <p className="text-muted-foreground">منصة الحرفيين الجزائرية</p>
+          <div className="text-4xl mb-2">🔨</div>
+          <h1 className="text-2xl font-bold text-gray-900">حرفتي</h1>
+          <p className="text-gray-500 mt-1">منصة الحرفيين الجزائرية</p>
         </div>
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as 'login' | 'register')}>
@@ -89,27 +91,42 @@ export default function AuthPage() {
               <CardContent>
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="login-email">البريد الإلكتروني</Label>
-                    <Input id="login-email" type="email" placeholder="example@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                    <Label htmlFor="email">البريد الإلكتروني</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="example@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="login-password">كلمة المرور</Label>
+                    <Label htmlFor="password">كلمة المرور</Label>
                     <div className="relative">
                       <Input
-                        id="login-password"
+                        id="password"
                         type={showPassword ? 'text' : 'password'}
                         placeholder="••••••••"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
                       />
-                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
                   </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <Button
+                    type="submit"
+                    className="w-full bg-orange-500 hover:bg-orange-600"
+                    disabled={loading}
+                  >
+                    {loading && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
                     تسجيل الدخول
                   </Button>
                 </form>
@@ -121,59 +138,80 @@ export default function AuthPage() {
             <Card>
               <CardHeader>
                 <CardTitle>إنشاء حساب جديد</CardTitle>
-                <CardDescription>اختر نوع الحساب وأدخل بياناتك</CardDescription>
+                <CardDescription>اختر نوع حسابك وأدخل بياناتك</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleRegister} className="space-y-4">
-                  {/* Role Selector */}
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
                       onClick={() => setRole('worker')}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-colors ${role === 'worker' ? 'border-primary bg-primary/5 text-primary' : 'border-border hover:border-primary/50'}`}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-colors ${
+                        role === 'worker'
+                          ? 'border-orange-500 bg-orange-50 text-orange-700'
+                          : 'border-gray-200 hover:border-orange-200'
+                      }`}
                     >
-                      <Hammer className="h-6 w-6" />
+                      <span className="text-2xl">🔨</span>
                       <span className="text-sm font-medium">حرفي / عامل</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setRole('employer')}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-colors ${role === 'employer' ? 'border-primary bg-primary/5 text-primary' : 'border-border hover:border-primary/50'}`}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-colors ${
+                        role === 'employer'
+                          ? 'border-orange-500 bg-orange-50 text-orange-700'
+                          : 'border-gray-200 hover:border-orange-200'
+                      }`}
                     >
-                      <Building2 className="h-6 w-6" />
+                      <span className="text-2xl">🏢</span>
                       <span className="text-sm font-medium">صاحب عمل</span>
                     </button>
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="reg-name">الاسم الكامل</Label>
-                    <div className="relative">
-                      <User className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input id="reg-name" placeholder="أدخل اسمك الكامل" className="pr-9" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
-                    </div>
+                    <Label>الاسم الكامل</Label>
+                    <Input
+                      placeholder="أدخل اسمك الكامل"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="reg-email">البريد الإلكتروني</Label>
-                    <Input id="reg-email" type="email" placeholder="example@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                    <Label>البريد الإلكتروني</Label>
+                    <Input
+                      type="email"
+                      placeholder="example@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="reg-password">كلمة المرور</Label>
+                    <Label>كلمة المرور</Label>
                     <div className="relative">
                       <Input
-                        id="reg-password"
                         type={showPassword ? 'text' : 'password'}
                         placeholder="8 أحرف على الأقل"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
                       />
-                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
                   </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <Button
+                    type="submit"
+                    className="w-full bg-orange-500 hover:bg-orange-600"
+                    disabled={loading}
+                  >
+                    {loading && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
                     إنشاء الحساب
                   </Button>
                 </form>

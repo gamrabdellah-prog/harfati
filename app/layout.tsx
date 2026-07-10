@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { Tajawal } from 'next/font/google';
 import { AuthProvider } from './providers';
 import { Navbar } from '@/components/navbar';
-import { Toaster } from '@/components/ui/sonner';
+import { Toaster } from 'sonner';
 
 const tajawal = Tajawal({
   subsets: ['arabic', 'latin'],
@@ -13,7 +13,7 @@ const tajawal = Tajawal({
 
 export const metadata: Metadata = {
   title: 'حرفتي - منصة الحرفيين الجزائرية',
-  description: 'منصة جزائرية تربط الحرفيين وأصحاب العمل في الجزائر',
+  description: 'منصة جزائرية تربط الحرفيين وأصحاب العمل في كل ولايات الجزائر',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -22,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <AuthProvider>
           <Navbar />
-          <main className="min-h-screen">{children}</main>
+          <main>{children}</main>
           <Toaster position="top-center" richColors />
         </AuthProvider>
       </body>
