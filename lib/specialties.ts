@@ -1,9 +1,12 @@
 export const SPECIALTIES = ['نجارة','حدادة','كهرباء','سباكة','دهان','ميكانيك سيارات','بناء','خياطة','لحام','بلاط وسيراميك','ألومنيوم','تكييف وتبريد','جبس وديكور','صباغة','إصلاح أجهزة كهرومنزلية','سمكرة','صناعة الأثاث','مطور ويب','مطور تطبيقات','مصمم جرافيك','تقنية معلومات','تصوير فوتوغرافي','مونتاج فيديو','نقل وشحن','تنظيف منازل','طباخ','محاسب','مدرس خصوصي','زراعة','تنسيق حدائق','حلاقة','تجميل','عام'];
+
 export const SPECIALTY_CATEGORIES = [
-  { name:'الحرف اليدوية', icon:'🔨', color:'from-orange-500 to-red-500', bg:'bg-orange-50', text:'text-orange-700', specialties:['نجارة','حدادة','كهرباء','سباكة','دهان','بناء','لحام','بلاط وسيراميك','ألومنيوم','تكييف وتبريد','جبس وديكور'] },
-  { name:'التقنية', icon:'💻', color:'from-blue-500 to-cyan-500', bg:'bg-blue-50', text:'text-blue-700', specialties:['مطور ويب','مطور تطبيقات','مصمم جرافيك','تقنية معلومات','تصوير فوتوغرافي','مونتاج فيديو'] },
-  { name:'الخدمات', icon:'🛎️', color:'from-purple-500 to-pink-500', bg:'bg-purple-50', text:'text-purple-700', specialties:['نقل وشحن','تنظيف منازل','طباخ','محاسب'] },
-  { name:'التعليم', icon:'📚', color:'from-emerald-500 to-teal-500', bg:'bg-emerald-50', text:'text-emerald-700', specialties:['مدرس خصوصي'] },
-  { name:'الزراعة', icon:'🌱', color:'from-green-500 to-lime-500', bg:'bg-green-50', text:'text-green-700', specialties:['زراعة','تنسيق حدائق'] },
-  { name:'الصحة والجمال', icon:'✨', color:'from-rose-500 to-pink-500', bg:'bg-rose-50', text:'text-rose-700', specialties:['حلاقة','تجميل'] },
+  { name: 'الحرف اليدوية', icon: '🔨', gradient: 'from-orange-500 to-red-600', lightBg: 'bg-orange-50', textColor: 'text-orange-700', border: 'border-orange-200', count: 11, specialties: ['نجارة','حدادة','كهرباء','سباكة','دهان','بناء','لحام','بلاط وسيراميك','ألومنيوم','تكييف وتبريد','جبس وديكور'] },
+  { name: 'التقنية', icon: '💻', gradient: 'from-blue-500 to-cyan-600', lightBg: 'bg-blue-50', textColor: 'text-blue-700', border: 'border-blue-200', count: 6, specialties: ['مطور ويب','مطور تطبيقات','مصمم جرافيك','تقنية معلومات','تصوير فوتوغرافي','مونتاج فيديو'] },
+  { name: 'الخدمات', icon: '🛎️', gradient: 'from-violet-500 to-purple-600', lightBg: 'bg-violet-50', textColor: 'text-violet-700', border: 'border-violet-200', count: 4, specialties: ['نقل وشحن','تنظيف منازل','طباخ','محاسب'] },
+  { name: 'التعليم', icon: '📚', gradient: 'from-emerald-500 to-teal-600', lightBg: 'bg-emerald-50', textColor: 'text-emerald-700', border: 'border-emerald-200', count: 1, specialties: ['مدرس خصوصي'] },
+  { name: 'الزراعة', icon: '🌿', gradient: 'from-green-500 to-lime-600', lightBg: 'bg-green-50', textColor: 'text-green-700', border: 'border-green-200', count: 2, specialties: ['زراعة','تنسيق حدائق'] },
+  { name: 'الصحة والجمال', icon: '✨', gradient: 'from-pink-500 to-rose-600', lightBg: 'bg-pink-50', textColor: 'text-pink-700', border: 'border-pink-200', count: 2, specialties: ['حلاقة','تجميل'] },
 ];
+
+export const ALGERIAN_WILAYAS_SAMPLE = ['الجزائر','وهران','قسنطينة','عنابة','بجاية','سطيف','تلمسان','ورقلة','بسكرة','المدية'];

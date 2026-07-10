@@ -1,13 +1,13 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-let client: SupabaseClient | null = null;
-function getSupabase(): SupabaseClient {
-  if (client) return client;
+let _client: SupabaseClient | null = null;
+function get(): SupabaseClient {
+  if (_client) return _client;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://zxbmcylkudvcstewudhk.supabase.co';
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4Ym1jeWxrdWR2Y3N0ZXd1ZGhrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1ODAxMTMsImV4cCI6MjA5ODE1NjExM30.JWZxsYnfU_Rr46mrTfRgBSAqsvNjln48i6Y0NyiNShg';
-  client = createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
-  return client;
+  _client = createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
+  return _client;
 }
-export const supabase = new Proxy({} as SupabaseClient, { get(_t, p) { return Reflect.get(getSupabase(), p); } });
+export const supabase = new Proxy({} as SupabaseClient, { get(_t, p) { return Reflect.get(get(), p); } });
 export type Tables = {
   profiles: { id: string; role: 'worker'|'employer'; full_name: string|null; phone: string|null; bio: string|null; avatar_url: string|null; wilaya_id: number|null; address: string|null; specialty: string|null; hourly_rate: number|null; skills: string[]; availability: 'available'|'busy'|'unavailable'; years_experience: number|null; company_name: string|null; facebook_url: string|null; instagram_url: string|null; linkedin_url: string|null; identity_doc_url: string|null; certificates_urls: string[]; cv_url: string|null; avg_rating: number; review_count: number; created_at: string; updated_at: string; };
   wilayas: { id: number; name: string; code: number };
