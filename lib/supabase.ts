@@ -1,11 +1,11 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-let _client: SupabaseClient | null = null;
+let _c: SupabaseClient | null = null;
 function get(): SupabaseClient {
-  if (_client) return _client;
+  if (_c) return _c;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://zxbmcylkudvcstewudhk.supabase.co';
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4Ym1jeWxrdWR2Y3N0ZXd1ZGhrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1ODAxMTMsImV4cCI6MjA5ODE1NjExM30.JWZxsYnfU_Rr46mrTfRgBSAqsvNjln48i6Y0NyiNShg';
-  _client = createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
-  return _client;
+  _c = createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
+  return _c;
 }
 export const supabase = new Proxy({} as SupabaseClient, { get(_t, p) { return Reflect.get(get(), p); } });
 export type Tables = {
