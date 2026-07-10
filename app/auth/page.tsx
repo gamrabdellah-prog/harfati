@@ -5,17 +5,20 @@ import { useAuth } from '@/app/providers';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Hammer, Building2, User, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateEmail, validatePassword, validateFullName, sanitizeText } from '@/lib/validation';
+import { cn } from '@/lib/utils';
+
+const BENEFITS = ['أكثر من 1000 حرفي متخصص', 'تغطية كاملة 48 ولاية', 'عقود رقمية آمنة', 'تقييمات موثوقة'];
 
 export default function AuthPage() {
-  const searchParams = useSearchParams();
-  const [tab, setTab] = useState<'login' | 'register'>(searchParams.get('tab') === 'register' ? 'register' : 'login');
-  const [role, setRole] = useState<'worker' | 'employer'>('worker');
-  const [showPassword, setShowPassword] = useState(false);
+  const sp = useSearchParams();
+  const [tab, setTab] = useState<'login'|'register'>(sp.get('tab') === 'register' ? 'register' : 'login');
+  const [role, setRole] = useState<'worker'|'employer'>('worker');
+  const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -23,164 +26,169 @@ export default function AuthPage() {
   const router = useRouter();
   const { signIn, signUp, user } = useAuth();
 
-  useEffect(() => {
-    if (user) router.push('/');
-  }, [user, router]);
+  useEffect(() => { if (user) router.push('/'); }, [user, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const emailErr = validateEmail(email);
-    const passErr = validatePassword(password);
-    if (emailErr) { toast.error(emailErr); return; }
-    if (passErr) { toast.error(passErr); return; }
+    const ee = validateEmail(email); if (ee) { toast.error(ee); return; }
+    const pe = validatePassword(password); if (pe) { toast.error(pe); return; }
     setLoading(true);
     const { error } = await signIn(email.trim(), password);
     setLoading(false);
-    if (error) {
-      toast.error('فشل تسجيل الدخول: ' + (error.message.includes('Invalid') ? 'البريد أو كلمة المرور غير صحيحة' : error.message));
-    } else {
-      toast.success('مرحباً بك!');
-      router.push('/');
-    }
+    if (error) toast.error(error.message.includes('Invalid') ? 'البريد أو كلمة المرور غير صحيحة' : error.message);
+    else { toast.success('مرحباً بك! 👋'); router.push('/'); }
   };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    const nameErr = validateFullName(fullName);
-    const emailErr = validateEmail(email);
-    const passErr = validatePassword(password);
-    if (nameErr) { toast.error(nameErr); return; }
-    if (emailErr) { toast.error(emailErr); return; }
-    if (passErr) { toast.error(passErr); return; }
+    const ne = validateFullName(fullName); if (ne) { toast.error(ne); return; }
+    const ee = validateEmail(email); if (ee) { toast.error(ee); return; }
+    const pe = validatePassword(password); if (pe) { toast.error(pe); return; }
     setLoading(true);
     const { error } = await signUp(email.trim(), password, role, sanitizeText(fullName));
     setLoading(false);
-    if (error) {
-      toast.error('فشل إنشاء الحساب: ' + error.message);
-    } else {
-      toast.success('تم إنشاء الحساب بنجاح!');
-      setTab('login');
-    }
+    if (error) toast.error(error.message);
+    else { toast.success('تم إنشاء حسابك بنجاح! 🎉'); setTab('login'); }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 text-primary font-bold text-3xl mb-2">
-            <Hammer className="h-8 w-8" />
-            <span>حرفتي</span>
-          </div>
-          <p className="text-muted-foreground">منصة الحرفيين الجزائرية</p>
+    <div className="min-h-screen flex">
+      {/* Left panel — visual */}
+      <div className="hidden lg:flex flex-col justify-between w-[45%] hero-gradient noise p-12 relative overflow-hidden">
+        <div className="absolute inset-0">
+          <div className="absolute top-20 right-20 h-72 w-72 rounded-full bg-orange-400/20 animate-blob blur-3xl" />
+          <div className="absolute bottom-20 left-10 h-64 w-64 rounded-full bg-orange-600/20 animate-blob delay-300 blur-3xl" />
         </div>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as 'login' | 'register')}>
-          <TabsList className="w-full mb-6">
-            <TabsTrigger value="login" className="flex-1">تسجيل الدخول</TabsTrigger>
-            <TabsTrigger value="register" className="flex-1">إنشاء حساب</TabsTrigger>
-          </TabsList>
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-16">
+            <div className="h-10 w-10 rounded-xl bg-white/15 flex items-center justify-center backdrop-blur border border-white/20"><span className="text-xl">🔨</span></div>
+            <span className="font-extrabold text-2xl text-white"><span className="text-orange-300">حرف</span>تي</span>
+          </div>
+          <h2 className="text-4xl font-black text-white leading-tight mb-4">
+            انضم إلى<br />مجتمع<br />الحرفيين
+          </h2>
+          <p className="text-white/60 leading-relaxed">المنصة الأولى التي تربط الحرفيين المهرة بأصحاب العمل في كل الجزائر</p>
+        </div>
 
-          <TabsContent value="login">
-            <Card>
-              <CardHeader>
-                <CardTitle>تسجيل الدخول</CardTitle>
-                <CardDescription>أدخل بياناتك للوصول إلى حسابك</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="login-email">البريد الإلكتروني</Label>
-                    <Input id="login-email" type="email" placeholder="example@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="login-password">كلمة المرور</Label>
-                    <div className="relative">
-                      <Input
-                        id="login-password"
-                        type={showPassword ? 'text' : 'password'}
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                      />
-                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    تسجيل الدخول
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
+        <div className="relative z-10 space-y-3">
+          {BENEFITS.map((b) => (
+            <div key={b} className="flex items-center gap-3 glass rounded-xl px-4 py-3">
+              <CheckCircle className="h-4 w-4 text-emerald-400 shrink-0" />
+              <span className="text-white/80 text-sm">{b}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
-          <TabsContent value="register">
-            <Card>
-              <CardHeader>
-                <CardTitle>إنشاء حساب جديد</CardTitle>
-                <CardDescription>اختر نوع الحساب وأدخل بياناتك</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleRegister} className="space-y-4">
-                  {/* Role Selector */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setRole('worker')}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-colors ${role === 'worker' ? 'border-primary bg-primary/5 text-primary' : 'border-border hover:border-primary/50'}`}
-                    >
-                      <Hammer className="h-6 w-6" />
-                      <span className="text-sm font-medium">حرفي / عامل</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRole('employer')}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-colors ${role === 'employer' ? 'border-primary bg-primary/5 text-primary' : 'border-border hover:border-primary/50'}`}
-                    >
-                      <Building2 className="h-6 w-6" />
-                      <span className="text-sm font-medium">صاحب عمل</span>
-                    </button>
-                  </div>
+      {/* Right panel — form */}
+      <div className="flex-1 flex items-center justify-center p-6 bg-gray-50">
+        <div className="w-full max-w-md">
+          {/* Mobile logo */}
+          <div className="lg:hidden text-center mb-8">
+            <div className="inline-flex items-center gap-2 mb-2">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shadow-lg"><span className="text-xl">🔨</span></div>
+              <span className="font-extrabold text-2xl"><span className="text-gradient">حرف</span>تي</span>
+            </div>
+          </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-name">الاسم الكامل</Label>
-                    <div className="relative">
-                      <User className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input id="reg-name" placeholder="أدخل اسمك الكامل" className="pr-9" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+          <Tabs value={tab} onValueChange={(v) => setTab(v as 'login'|'register')}>
+            <TabsList className="w-full mb-6 p-1.5 bg-white border border-border shadow-sm">
+              <TabsTrigger value="login" className="flex-1 py-2.5">تسجيل الدخول</TabsTrigger>
+              <TabsTrigger value="register" className="flex-1 py-2.5">حساب جديد</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="login">
+              <Card className="border-border/50 shadow-xl shadow-black/5">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-2xl font-black">مرحباً بعودتك 👋</CardTitle>
+                  <CardDescription>أدخل بياناتك للوصول لحسابك</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleLogin} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>البريد الإلكتروني</Label>
+                      <Input type="email" placeholder="example@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-email">البريد الإلكتروني</Label>
-                    <Input id="reg-email" type="email" placeholder="example@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-password">كلمة المرور</Label>
-                    <div className="relative">
-                      <Input
-                        id="reg-password"
-                        type={showPassword ? 'text' : 'password'}
-                        placeholder="8 أحرف على الأقل"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                      />
-                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
+                    <div className="space-y-2">
+                      <Label>كلمة المرور</Label>
+                      <div className="relative">
+                        <Input type={showPass ? 'text' : 'password'} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                        <button type="button" onClick={() => setShowPass(!showPass)} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                          {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    إنشاء الحساب
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                    <Button type="submit" variant="premium" className="w-full h-12 text-base" disabled={loading}>
+                      {loading ? <Loader2 className="h-5 w-5 animate-spin ml-2" /> : null}
+                      تسجيل الدخول
+                    </Button>
+                  </form>
+                  <p className="text-center text-sm text-muted-foreground mt-5">
+                    ليس لديك حساب؟{' '}
+                    <button onClick={() => setTab('register')} className="text-orange-600 hover:underline font-semibold">أنشئ حساباً</button>
+                  </p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="register">
+              <Card className="border-border/50 shadow-xl shadow-black/5">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-2xl font-black">إنشاء حساب 🚀</CardTitle>
+                  <CardDescription>مجاناً تماماً — لا بطاقة مطلوبة</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleRegister} className="space-y-4">
+                    {/* Role picker */}
+                    <div className="space-y-2">
+                      <Label>نوع الحساب</Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {([['worker','🔨','حرفي / عامل','اعرض مهاراتك واحصل على عمل'],['employer','🏢','صاحب عمل','انشر وظائف وجد حرفيين']] as const).map(([r, icon, title, desc]) => (
+                          <button key={r} type="button" onClick={() => setRole(r)}
+                            className={cn('flex flex-col items-center gap-2 p-4 rounded-xl border-2 text-center transition-all',
+                              role === r ? 'border-orange-500 bg-orange-50/50 shadow-sm shadow-orange-500/10' : 'border-border hover:border-orange-200 bg-white')}>
+                            <span className="text-2xl">{icon}</span>
+                            <div>
+                              <p className={cn('text-sm font-bold', role === r ? 'text-orange-700' : 'text-foreground')}>{title}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5 leading-tight">{desc}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>الاسم الكامل</Label>
+                      <Input placeholder="أحمد بن محمد" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>البريد الإلكتروني</Label>
+                      <Input type="email" placeholder="example@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>كلمة المرور</Label>
+                      <div className="relative">
+                        <Input type={showPass ? 'text' : 'password'} placeholder="8 أحرف على الأقل" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                        <button type="button" onClick={() => setShowPass(!showPass)} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                          {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <Button type="submit" variant="premium" className="w-full h-12 text-base" disabled={loading}>
+                      {loading ? <Loader2 className="h-5 w-5 animate-spin ml-2" /> : null}
+                      إنشاء حسابي مجاناً
+                    </Button>
+                  </form>
+                  <p className="text-center text-sm text-muted-foreground mt-5">
+                    لديك حساب بالفعل؟{' '}
+                    <button onClick={() => setTab('login')} className="text-orange-600 hover:underline font-semibold">سجّل دخولك</button>
+                  </p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
     </div>
   );

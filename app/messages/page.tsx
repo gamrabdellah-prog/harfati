@@ -7,244 +7,157 @@ import { supabase } from '@/lib/supabase';
 import type { Tables } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Send, Loader2, MessageSquare } from 'lucide-react';
+import { Send, Loader2, MessageSquare, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateMessageContent, sanitizeText } from '@/lib/validation';
-
-type Conversation = {
-  other: Tables['profiles'] | null;
-  lastMessage: Tables['messages'] | null;
-  unread: number;
-};
+import { cn } from '@/lib/utils';
+type Conv = { other: Tables['profiles']|null; lastMsg: Tables['messages']|null; unread: number };
 
 export default function MessagesPage() {
-  const { user, loading: authLoading } = useAuth();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(searchParams.get('user'));
+  const { user, loading:al } = useAuth(); const router = useRouter(); const sp = useSearchParams();
+  const [convs, setConvs] = useState<Conv[]>([]);
+  const [selId, setSelId] = useState<string|null>(sp.get('user'));
   const [messages, setMessages] = useState<Tables['messages'][]>([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [loadingConversations, setLoadingConversations] = useState(true);
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [selectedUserProfile, setSelectedUserProfile] = useState<Tables['profiles'] | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [newMsg, setNewMsg] = useState('');
+  const [loadingConvs, setLoadingConvs] = useState(true); const [loadingMsgs, setLoadingMsgs] = useState(false); const [sending, setSending] = useState(false);
+  const [otherProfile, setOtherProfile] = useState<Tables['profiles']|null>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  useEffect(()=>{if(!al&&!user)router.push('/auth');},[al,user,router]);
 
-  useEffect(() => {
-    if (!authLoading && !user) router.push('/auth');
-  }, [authLoading, user, router]);
+  const fetchConvs = useCallback(async()=>{
+    if(!user)return;
+    const {data:msgs}=await supabase.from('messages').select('*').or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`).order('created_at',{ascending:false});
+    if(!msgs){setLoadingConvs(false);return;}
+    const pidsSet=new Set(msgs.map(m=>m.sender_id===user.id?m.receiver_id:m.sender_id));
+    const pids=Array.from(pidsSet);
+    if(!pids.length){setConvs([]);setLoadingConvs(false);return;}
+    const {data:profiles}=await supabase.from('profiles').select('*').in('id',pids);
+    const pmap=new Map((profiles||[]).map(p=>[p.id,p]));
+    setConvs(pids.map(pid=>({other:pmap.get(pid)||null,lastMsg:msgs.find(m=>m.sender_id===pid||m.receiver_id===pid)||null,unread:msgs.filter(m=>m.receiver_id===user.id&&m.sender_id===pid&&!m.is_read).length})));
+    setLoadingConvs(false);
+  },[user]);
 
-  const fetchConversations = useCallback(async () => {
-    if (!user) return;
-    const { data: msgs } = await supabase
-      .from('messages')
-      .select('*')
-      .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-      .order('created_at', { ascending: false });
+  useEffect(()=>{fetchConvs();},[fetchConvs]);
 
-    if (!msgs) { setLoadingConversations(false); return; }
+  const fetchMsgs = useCallback(async(pid:string)=>{
+    if(!user)return;
+    setLoadingMsgs(true);
+    const {data}=await supabase.from('messages').select('*').or(`and(sender_id.eq.${user.id},receiver_id.eq.${pid}),and(sender_id.eq.${pid},receiver_id.eq.${user.id})`).order('created_at',{ascending:true});
+    setMessages(data||[]); setLoadingMsgs(false);
+    await supabase.from('messages').update({is_read:true}).eq('sender_id',pid).eq('receiver_id',user.id).eq('is_read',false);
+    fetchConvs();
+  },[user,fetchConvs]);
 
-    const partnerIdsSet = new Set(msgs.map((m) => m.sender_id === user.id ? m.receiver_id : m.sender_id));
-    const partnerIds = Array.from(partnerIdsSet);
-    if (partnerIds.length === 0) { setConversations([]); setLoadingConversations(false); return; }
+  useEffect(()=>{if(!selId)return;fetchMsgs(selId);supabase.from('profiles').select('*').eq('id',selId).maybeSingle().then(({data})=>setOtherProfile(data));},[selId,fetchMsgs]);
+  useEffect(()=>{endRef.current?.scrollIntoView({behavior:'smooth'});},[messages]);
+  useEffect(()=>{if(!user||!selId)return;const id=setInterval(()=>fetchMsgs(selId),5000);return()=>clearInterval(id);},[user,selId,fetchMsgs]);
 
-    const { data: profiles } = await supabase.from('profiles').select('*').in('id', partnerIds);
-    const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
-
-    const convs: Conversation[] = partnerIds.map((pid) => {
-      const pMsgs = msgs.filter((m) => m.sender_id === pid || m.receiver_id === pid);
-      const unread = pMsgs.filter((m) => m.receiver_id === user.id && !m.is_read).length;
-      return { other: profileMap.get(pid) || null, lastMessage: pMsgs[0] || null, unread };
-    });
-
-    setConversations(convs);
-    setLoadingConversations(false);
-  }, [user]);
-
-  useEffect(() => { fetchConversations(); }, [fetchConversations]);
-
-  const fetchMessages = useCallback(async (partnerId: string) => {
-    if (!user) return;
-    setLoadingMessages(true);
-    const { data } = await supabase
-      .from('messages')
-      .select('*')
-      .or(`and(sender_id.eq.${user.id},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${user.id})`)
-      .order('created_at', { ascending: true });
-    setMessages(data || []);
-    setLoadingMessages(false);
-    // Mark as read
-    await supabase.from('messages').update({ is_read: true }).eq('sender_id', partnerId).eq('receiver_id', user.id).eq('is_read', false);
-    fetchConversations();
-  }, [user, fetchConversations]);
-
-  useEffect(() => {
-    if (selectedUserId) {
-      fetchMessages(selectedUserId);
-      supabase.from('profiles').select('*').eq('id', selectedUserId).maybeSingle().then(({ data }) => setSelectedUserProfile(data));
-    }
-  }, [selectedUserId, fetchMessages]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  useEffect(() => {
-    if (!user || !selectedUserId) return;
-    const interval = setInterval(() => fetchMessages(selectedUserId), 5000);
-    return () => clearInterval(interval);
-  }, [user, selectedUserId, fetchMessages]);
-
-  const sendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !selectedUserId) return;
-    const err = validateMessageContent(newMessage);
-    if (err) { toast.error(err); return; }
+  const send=async(e:React.FormEvent)=>{
+    e.preventDefault(); if(!user||!selId)return;
+    const err=validateMessageContent(newMsg); if(err){toast.error(err);return;}
     setSending(true);
-    const { error } = await supabase.from('messages').insert({
-      sender_id: user.id,
-      receiver_id: selectedUserId,
-      content: sanitizeText(newMessage),
-    });
+    const {error}=await supabase.from('messages').insert({sender_id:user.id,receiver_id:selId,content:sanitizeText(newMsg)});
     setSending(false);
-    if (error) {
-      toast.error('فشل إرسال الرسالة');
-    } else {
-      setNewMessage('');
-      fetchMessages(selectedUserId);
-    }
+    if(error)toast.error(error.message);
+    else{setNewMsg('');fetchMsgs(selId);}
   };
 
-  if (authLoading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
-  if (!user) return null;
+  if(al)return<div className="flex items-center justify-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-orange-500"/></div>;
+  if(!user)return null;
 
-  return (
-    <div className="container mx-auto px-4 py-4 h-[calc(100vh-5rem)]">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-full">
-        {/* Conversations List */}
-        <Card className="flex flex-col overflow-hidden">
-          <div className="p-4 border-b font-semibold text-sm">المحادثات</div>
-          <ScrollArea className="flex-1">
-            {loadingConversations ? (
-              <div className="p-4 space-y-3">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <Skeleton className="h-10 w-10 rounded-full" />
-                    <div className="space-y-1.5 flex-1"><Skeleton className="h-3.5 w-3/4" /><Skeleton className="h-3 w-1/2" /></div>
-                  </div>
-                ))}
-              </div>
-            ) : conversations.length === 0 ? (
-              <div className="p-6 text-center text-muted-foreground text-sm">
-                <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                لا توجد محادثات
-              </div>
-            ) : (
-              conversations.map((conv) => (
-                <button
-                  key={conv.other?.id}
-                  onClick={() => setSelectedUserId(conv.other?.id || null)}
-                  className={`w-full flex items-center gap-3 p-4 border-b hover:bg-muted/50 transition-colors text-right ${selectedUserId === conv.other?.id ? 'bg-primary/5' : ''}`}
-                >
-                  <Avatar className="h-10 w-10 shrink-0">
-                    <AvatarFallback className="bg-primary/10 text-primary font-bold">
-                      {conv.other?.full_name?.charAt(0) || '؟'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <p className="font-medium text-sm truncate">{conv.other?.full_name || 'مستخدم'}</p>
-                      {conv.unread > 0 && <span className="h-5 w-5 rounded-full bg-primary text-white text-xs flex items-center justify-center font-bold shrink-0">{conv.unread}</span>}
-                    </div>
-                    {conv.lastMessage && (
-                      <p className="text-xs text-muted-foreground truncate">{conv.lastMessage.content}</p>
-                    )}
-                  </div>
-                </button>
-              ))
-            )}
-          </ScrollArea>
-        </Card>
+  return(
+    <div className="flex h-[calc(100vh-64px)] bg-muted/20">
+      {/* Conversations sidebar */}
+      <div className={cn('w-80 shrink-0 bg-white border-l flex flex-col', selId?'hidden md:flex':'flex')}>
+        <div className="p-5 border-b bg-white">
+          <h2 className="font-black text-lg">الرسائل</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">{convs.length} محادثة</p>
+        </div>
+        <ScrollArea className="flex-1">
+          {loadingConvs?(
+            <div className="p-4 space-y-3">{Array.from({length:5}).map((_,i)=><div key={i} className="flex items-center gap-3"><Skeleton className="h-12 w-12 rounded-full"/><div className="flex-1 space-y-2"><Skeleton className="h-4 w-3/4"/><Skeleton className="h-3 w-1/2"/></div></div>)}</div>
+          ):convs.length===0?(
+            <div className="p-8 text-center text-muted-foreground"><MessageSquare className="h-10 w-10 mx-auto mb-3 opacity-20"/><p className="font-medium">لا توجد محادثات</p><p className="text-xs mt-1">تواصل مع حرفيين من صفحة ملفهم</p></div>
+          ):(
+            convs.map(c=>(
+              <button key={c.other?.id} onClick={()=>setSelId(c.other?.id||null)}
+                className={cn('w-full flex items-center gap-3 p-4 border-b border-border/40 hover:bg-muted/40 text-right transition-colors',selId===c.other?.id?'bg-orange-50 border-orange-100':'')}>
+                <div className="relative shrink-0">
+                  <Avatar className="h-12 w-12"><AvatarFallback className="bg-gradient-to-br from-orange-400 to-orange-600 text-white font-bold">{c.other?.full_name?.charAt(0)||'?'}</AvatarFallback></Avatar>
+                  {c.unread>0&&<span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-orange-500 text-white text-xs font-bold flex items-center justify-center ring-2 ring-white">{c.unread}</span>}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={cn('text-sm font-semibold truncate',selId===c.other?.id?'text-orange-700':'')}>{c.other?.full_name||'مستخدم'}</p>
+                  {c.lastMsg&&<p className="text-xs text-muted-foreground truncate mt-0.5">{c.lastMsg.content}</p>}
+                </div>
+                {selId===c.other?.id&&<ChevronLeft className="h-4 w-4 text-orange-400 shrink-0"/>}
+              </button>
+            ))
+          )}
+        </ScrollArea>
+      </div>
 
-        {/* Messages Panel */}
-        <Card className="md:col-span-2 flex flex-col overflow-hidden">
-          {!selectedUserId ? (
-            <div className="flex-1 flex items-center justify-center text-muted-foreground">
-              <div className="text-center">
-                <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                <p>اختر محادثة للبدء</p>
+      {/* Chat area */}
+      <div className={cn('flex-1 flex flex-col', !selId?'hidden md:flex':'flex')}>
+        {!selId?(
+          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+            <div className="text-center">
+              <MessageSquare className="h-16 w-16 mx-auto mb-4 opacity-10"/>
+              <h3 className="text-xl font-bold mb-1">اختر محادثة</h3>
+              <p className="text-sm">اختر محادثة من القائمة للبدء</p>
+            </div>
+          </div>
+        ):(
+          <>
+            {/* Header */}
+            <div className="bg-white border-b p-4 flex items-center gap-3">
+              <button onClick={()=>setSelId(null)} className="md:hidden text-muted-foreground hover:text-foreground transition-colors"><ChevronLeft className="h-5 w-5 rotate-180"/></button>
+              <Avatar className="h-10 w-10 ring-2 ring-orange-100"><AvatarFallback className="bg-gradient-to-br from-orange-400 to-orange-600 text-white font-bold">{otherProfile?.full_name?.charAt(0)||'?'}</AvatarFallback></Avatar>
+              <div>
+                <Link href={`/profile/${selId}`} className="font-bold hover:text-orange-600 transition-colors">{otherProfile?.full_name||'مستخدم'}</Link>
+                {otherProfile?.specialty&&<p className="text-xs text-muted-foreground">{otherProfile.specialty}</p>}
               </div>
             </div>
-          ) : (
-            <>
-              {/* Header */}
-              <div className="p-4 border-b flex items-center gap-3">
-                <Avatar className="h-9 w-9">
-                  <AvatarFallback className="bg-primary/10 text-primary font-bold">
-                    {selectedUserProfile?.full_name?.charAt(0) || '؟'}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <Link href={`/profile/${selectedUserId}`} className="font-medium text-sm hover:text-primary">
-                    {selectedUserProfile?.full_name || 'مستخدم'}
-                  </Link>
-                  <p className="text-xs text-muted-foreground">{selectedUserProfile?.specialty || selectedUserProfile?.role || ''}</p>
-                </div>
-              </div>
 
-              {/* Messages */}
-              <ScrollArea className="flex-1 p-4">
-                {loadingMessages ? (
-                  <div className="space-y-3">
-                    {Array.from({ length: 4 }).map((_, i) => (
-                      <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
-                        <Skeleton className="h-10 w-48 rounded-xl" />
-                      </div>
-                    ))}
-                  </div>
-                ) : messages.length === 0 ? (
-                  <div className="text-center text-muted-foreground text-sm py-8">ابدأ المحادثة</div>
-                ) : (
-                  <div className="space-y-3">
-                    {messages.map((msg) => {
-                      const isMe = msg.sender_id === user.id;
-                      return (
-                        <div key={msg.id} className={`flex ${isMe ? 'justify-start' : 'justify-end'}`}>
-                          <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm ${isMe ? 'bg-primary text-white rounded-br-sm' : 'bg-muted text-foreground rounded-bl-sm'}`}>
-                            <p>{msg.content}</p>
-                            <p className={`text-xs mt-1 ${isMe ? 'text-white/70' : 'text-muted-foreground'}`}>
-                              {new Date(msg.created_at).toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' })}
-                            </p>
+            {/* Messages */}
+            <ScrollArea className="flex-1 p-5">
+              {loadingMsgs?(
+                <div className="space-y-4">{Array.from({length:5}).map((_,i)=><div key={i} className={cn('flex',i%2===0?'justify-start':'justify-end')}><Skeleton className="h-12 w-48 rounded-2xl"/></div>)}</div>
+              ):messages.length===0?(
+                <div className="h-full flex items-center justify-center text-muted-foreground"><p className="text-sm">ابدأ المحادثة الآن 👋</p></div>
+              ):(
+                <div className="space-y-3">
+                  {messages.map((m,i)=>{
+                    const isMe=m.sender_id===user.id;
+                    const showTime=i===messages.length-1||messages[i+1]?.sender_id!==m.sender_id;
+                    return(
+                      <div key={m.id} className={cn('flex',isMe?'justify-start':'justify-end')}>
+                        <div className={cn('max-w-[70%]',isMe?'items-start':'items-end','flex flex-col gap-1')}>
+                          <div className={cn('px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm',isMe?'bg-orange-500 text-white rounded-br-md':'bg-white text-foreground rounded-bl-md border')}>
+                            {m.content}
                           </div>
+                          {showTime&&<p className={cn('text-xs text-muted-foreground px-1',isMe?'text-right':'text-left')}>{new Date(m.created_at).toLocaleTimeString('ar-DZ',{hour:'2-digit',minute:'2-digit'})}</p>}
                         </div>
-                      );
-                    })}
-                    <div ref={messagesEndRef} />
-                  </div>
-                )}
-              </ScrollArea>
+                      </div>
+                    );
+                  })}
+                  <div ref={endRef}/>
+                </div>
+              )}
+            </ScrollArea>
 
-              {/* Input */}
-              <form onSubmit={sendMessage} className="p-4 border-t flex gap-2">
-                <Input
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="اكتب رسالة..."
-                  className="flex-1"
-                  disabled={sending}
-                />
-                <Button type="submit" disabled={sending || !newMessage.trim()} size="icon">
-                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                </Button>
-              </form>
-            </>
-          )}
-        </Card>
+            {/* Input */}
+            <form onSubmit={send} className="bg-white border-t p-4 flex gap-3">
+              <Input value={newMsg} onChange={e=>setNewMsg(e.target.value)} placeholder="اكتب رسالة..." className="flex-1 rounded-xl" disabled={sending}/>
+              <Button type="submit" variant="premium" size="icon" className="rounded-xl shrink-0" disabled={sending||!newMsg.trim()}>
+                {sending?<Loader2 className="h-4 w-4 animate-spin"/>:<Send className="h-4 w-4"/>}
+              </Button>
+            </form>
+          </>
+        )}
       </div>
     </div>
   );
