@@ -1,48 +1,60 @@
-export const sanitizeText = (v: string) => v.replace(/\u0000/g, '').trim();
+export const sanitizeText = (value: string): string =>
+  value.replace(/\u0000/g, '').trim();
 
 export const validateEmail = (email: string): string | null => {
-  const t = email.trim();
-  if (!t) return 'البريد الإلكتروني مطلوب';
-  if (t.length > 254) return 'البريد الإلكتروني طويل جداً';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)) return 'البريد الإلكتروني غير صالح';
+  const trimmed = email.trim();
+  if (!trimmed) return 'البريد الإلكتروني مطلوب';
+  if (trimmed.length > 254) return 'البريد الإلكتروني طويل جداً';
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(trimmed)) return 'البريد الإلكتروني غير صالح';
   return null;
 };
-export const validatePassword = (p: string): string | null => {
-  if (!p) return 'كلمة المرور مطلوبة';
-  if (p.length < 8) return 'كلمة المرور يجب أن تكون 8 أحرف على الأقل';
-  if (p.length > 128) return 'كلمة المرور طويلة جداً';
+
+export const validatePassword = (password: string): string | null => {
+  if (!password) return 'كلمة المرور مطلوبة';
+  if (password.length < 8) return 'كلمة المرور يجب أن تكون 8 أحرف على الأقل';
+  if (password.length > 128) return 'كلمة المرور طويلة جداً';
   return null;
 };
-export const validateFullName = (n: string): string | null => {
-  const t = n.trim();
-  if (t.length < 2) return 'الاسم الكامل مطلوب (حرفان على الأقل)';
-  if (t.length > 100) return 'الاسم طويل جداً';
+
+export const validateFullName = (name: string): string | null => {
+  const trimmed = name.trim();
+  if (trimmed.length < 2) return 'الاسم الكامل مطلوب (حرفان على الأقل)';
+  if (trimmed.length > 100) return 'الاسم طويل جداً (100 حرف كحد أقصى)';
   return null;
 };
+
 export const validateTitle = (title: string, min = 3, max = 200): string | null => {
-  const t = title.trim();
-  if (t.length < min) return `العنوان مطلوب (${min} أحرف على الأقل)`;
-  if (t.length > max) return `العنوان طويل جداً`;
+  const trimmed = title.trim();
+  if (trimmed.length < min) return `العنوان مطلوب (${min} أحرف على الأقل)`;
+  if (trimmed.length > max) return `العنوان طويل جداً (${max} حرف كحد أقصى)`;
   return null;
 };
-export const validateDescription = (d: string, min = 10, max = 5000): string | null => {
-  const t = d.trim();
-  if (t.length < min) return `الوصف مطلوب (${min} أحرف على الأقل)`;
-  if (t.length > max) return 'الوصف طويل جداً';
+
+export const validateDescription = (desc: string, min = 10, max = 5000): string | null => {
+  const trimmed = desc.trim();
+  if (trimmed.length < min) return `الوصف مطلوب (${min} أحرف على الأقل)`;
+  if (trimmed.length > max) return `الوصف طويل جداً (${max} حرف كحد أقصى)`;
   return null;
 };
-export const validateAmount = (a: string): string | null => {
-  if (!a) return 'المبلغ مطلوب';
-  const n = parseInt(a, 10);
-  if (isNaN(n) || n < 0) return 'المبلغ يجب أن يكون رقماً موجباً';
+
+export const validateAmount = (amount: string): string | null => {
+  if (!amount) return 'المبلغ مطلوب';
+  const num = parseInt(amount, 10);
+  if (isNaN(num)) return 'المبلغ يجب أن يكون رقماً';
+  if (num < 0) return 'المبلغ يجب أن يكون موجباً';
+  if (num > 999999999) return 'المبلغ كبير جداً';
   return null;
 };
-export const validateMessageContent = (c: string): string | null => {
-  if (!c.trim()) return 'الرسالة فارغة';
-  if (c.length > 2000) return 'الرسالة طويلة جداً';
+
+export const validateMessageContent = (content: string): string | null => {
+  const trimmed = content.trim();
+  if (trimmed.length < 1) return 'الرسالة فارغة';
+  if (trimmed.length > 2000) return 'الرسالة طويلة جداً (2000 حرف كحد أقصى)';
   return null;
 };
-export const validateComment = (c: string, max = 1000): string | null => {
-  if (c.length > max) return `التعليق طويل جداً`;
+
+export const validateComment = (comment: string, max = 1000): string | null => {
+  if (comment.length > max) return `التعليق طويل جداً (${max} حرف كحد أقصى)`;
   return null;
 };
